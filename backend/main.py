@@ -33,6 +33,81 @@ rabbitmq_manager = RabbitMQManager(settings.RABBITMQ_URL)
 fault_simulator = FaultSimulator(global_registry)
 
 from backend.services.event_manager import generate_correlation_id, create_event
+from backend.services.election_manager import global_election_manager
+from backend.services.reallocation_engine import global_reallocation_engine
+
+_failover_lock = asyncio.Lock()
+
+async def handle_automatic_coordinator_failover(failed_coordinator_id: str):
+    """
+    Triggered when the current coordinator node becomes unavailable (> 10s TTL).
+    Executes authoritative Ring Leader Election and reassigns orphaned tasks.
+    Protected by concurrency lock and idempotency checks.
+    """
+    if _failover_lock.locked():
+        logger.info(f"[FAILOVER LOCK] Failover already in progress, skipping duplicate trigger for {failed_coordinator_id}")
+        return
+
+    async with _failover_lock:
+        current_leader = global_registry.current_leader
+        if current_leader != failed_coordinator_id and current_leader is not None and global_election_manager.is_node_eligible(current_leader):
+            logger.info(f"[FAILOVER IDEMPOTENT] Current leader already transitioned to {current_leader}, skipping.")
+            return
+
+        logger.warning(f"[FAILOVER INITIATED] Coordinator {failed_coordinator_id} is unavailable. Triggering election & task reassignment...")
+
+        # Find eligible initiator among surviving nodes
+        all_nodes = ["SAT-01", "SAT-02", "SAT-03", "SAT-04", "SAT-05"]
+        eligible_initiators = [
+            s for s in all_nodes
+            if s != failed_coordinator_id and global_election_manager.is_node_eligible(s)
+        ]
+        initiator = eligible_initiators[0] if eligible_initiators else "SAT-01"
+
+        # Execute authoritative Ring Election
+        election_res = await global_election_manager.execute_ring_election(initiator_id=initiator)
+        new_leader = election_res.get("current_leader")
+
+        # Broadcast leader election event
+        await websocket_manager.broadcast({
+            "event_type": "LEADER_ELECTION_COMPLETED",
+            "result": election_res,
+            "failed_coordinator": failed_coordinator_id,
+            "trigger": "AUTOMATIC_COORDINATOR_FAILOVER",
+            "timestamp": time.time()
+        })
+
+        # Reassign orphaned tasks belonging to the failed coordinator
+        realloc_res = await global_reallocation_engine.execute_reallocation_for_failed_node(failed_coordinator_id)
+
+        # Broadcast task reallocation event
+        await websocket_manager.broadcast({
+            "event_type": "AUTONOMOUS_REALLOCATION_COMPLETED",
+            "result": realloc_res,
+            "failed_node": failed_coordinator_id,
+            "trigger": "AUTOMATIC_COORDINATOR_FAILOVER",
+            "timestamp": time.time()
+        })
+
+        logger.info(f"[FAILOVER COMPLETED] Old Leader={failed_coordinator_id} -> New Leader={new_leader} | Tasks Reassigned={realloc_res.get('tasks_reassigned_count', 0)}")
+
+async def reassign_orphaned_tasks(failed_node_id: str):
+    """
+    Reassigns orphaned tasks for any non-coordinator satellite that has disconnected.
+    """
+    try:
+        realloc_res = await global_reallocation_engine.execute_reallocation_for_failed_node(failed_node_id)
+        if realloc_res.get("tasks_reassigned_count", 0) > 0:
+            await websocket_manager.broadcast({
+                "event_type": "AUTONOMOUS_REALLOCATION_COMPLETED",
+                "result": realloc_res,
+                "failed_node": failed_node_id,
+                "trigger": "NODE_DISCONNECTED_REALLOCATION",
+                "timestamp": time.time()
+            })
+            logger.info(f"[ORPHANED TASKS REASSIGNED] Node {failed_node_id} tasks reassigned: {realloc_res.get('tasks_reassigned_count', 0)}")
+    except Exception as e:
+        logger.error(f"Error reassigning orphaned tasks for {failed_node_id}: {e}")
 
 # Background sweep loop to detect heartbeat timeout / satellite failures
 async def heartbeat_sweeper_task():
@@ -76,6 +151,14 @@ async def heartbeat_sweeper_task():
                     payload={"satellite_id": fn, "status": "DISCONNECTED", "detection_latency_ms": latency, "failure_source": reg.failure_source if reg else "DOCKER_EXTERNAL"}
                 )
                 await websocket_manager.broadcast(evt)
+
+            # Automatic Coordinator Failover & Orphaned Task Reallocation
+            current_leader = global_registry.current_leader
+            if current_leader and (current_leader in disconnected or not global_election_manager.is_node_eligible(current_leader)):
+                await handle_automatic_coordinator_failover(current_leader)
+            elif disconnected:
+                for fn in disconnected:
+                    await reassign_orphaned_tasks(fn)
 
         except asyncio.CancelledError:
             break
@@ -570,21 +653,21 @@ async def get_event_trace(correlation_id: str):
 @app.post("/api/election/ring")
 async def trigger_ring_election(initiator_id: str = Query("SAT-01"), db: AsyncSession = Depends(get_db)):
     logger.info(f"[ELECTION API] Frontend → Mission Control | endpoint=/api/election/ring | initiator={initiator_id} | protocol=Ring Leader Election")
-    result = global_registry.run_ring_election(initiator_id=initiator_id)
+    result = await global_election_manager.execute_ring_election(initiator_id=initiator_id)
     
     evt = CommunicationEvent(
         event_id=result["event_id"],
         source=initiator_id,
-        destination=result["current_leader"],
+        destination=result["current_leader"] or "NONE",
         protocol="Ring Leader Election",
         method="RING_CIRCULATE",
         latency_ms=result["latency_ms"],
-        status="SUCCESS",
+        status=result["status"],
         payload_summary=f"Leader Elected: {result['current_leader']} (Participated: {len(result['participating_nodes'])})"
     )
     db.add(evt)
     await db.commit()
-    logger.info(f"[DATABASE AUDIT] Persisted CommunicationEvent | event_id={evt.event_id} | protocol=Ring Leader Election | status=SUCCESS")
+    logger.info(f"[DATABASE AUDIT] Persisted CommunicationEvent | event_id={evt.event_id} | protocol=Ring Leader Election | status={result['status']}")
 
     await websocket_manager.broadcast({
         "event_type": "LEADER_ELECTION_COMPLETED",
@@ -860,7 +943,7 @@ async def system_health():
     healthy_count = sum(1 for s in satellites if s.status == "HEALTHY")
     warning_count = sum(1 for s in satellites if s.status == "WARNING")
     critical_count = sum(1 for s in satellites if s.status == "CRITICAL")
-    offline_count = sum(1 for s in satellites if s.status == "OFFLINE")
+    offline_count = sum(1 for s in satellites if s.status in ["OFFLINE", "DISCONNECTED", "FAILED"])
 
     return {
         "status": "HEALTHY" if offline_count == 0 else "DEGRADED",

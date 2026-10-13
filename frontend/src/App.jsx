@@ -24,7 +24,6 @@ import RingElectionPage from './pages/RingElectionPage';
 import MutexManagerPage from './pages/MutexManagerPage';
 import GlobalSnapshotPage from './pages/GlobalSnapshotPage';
 import IncidentConsolePage from './pages/IncidentConsolePage';
-import Unit4LabPage from './pages/Unit4LabPage';
 import FailureIntelligencePage from './pages/FailureIntelligencePage';
 import ExperimentLabPage from './pages/ExperimentLabPage';
 import PartitionReconciliationPage from './pages/PartitionReconciliationPage';
@@ -162,7 +161,6 @@ export default function App() {
               <Route path="/incidents" element={<IncidentConsolePage />} />
               <Route path="/experiments" element={<ExperimentLabPage />} />
               <Route path="/partition" element={<PartitionReconciliationPage />} />
-              <Route path="/unit4-lab" element={<Unit4LabPage />} />
 
               <Route path="/topology" element={<ConstellationMap satellites={satellites} />} />
               <Route path="/observatory" element={<CommunicationObservatory observatoryStats={observatoryStats} onSelectCorrelationId={setActiveCorrelationId} />} />

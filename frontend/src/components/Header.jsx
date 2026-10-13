@@ -11,8 +11,8 @@ export default function Header({ systemHealth, wsConnected }) {
     return () => clearInterval(timer);
   }, []);
 
-  const totalSats = systemHealth?.satellites?.total || 5;
-  const healthySats = systemHealth?.satellites?.healthy || 5;
+  const totalSats = systemHealth?.satellites?.total;
+  const healthySats = systemHealth?.satellites?.healthy;
   const isHealthy = (systemHealth?.status === 'HEALTHY');
 
   return (
@@ -25,14 +25,14 @@ export default function Header({ systemHealth, wsConnected }) {
         <div>
           <div className="flex items-center space-x-2">
             <h1 className="text-lg font-bold text-slate-100 tracking-wider font-orbitron">
-              ORBITAL MISSION CONTROL
+              ORBITTRACK
             </h1>
             <span className="px-2 py-0.5 text-xs font-semibold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 rounded-md">
-              FA-1 LAB
+              LIVE OPERATIONS
             </span>
           </div>
           <p className="text-xs text-slate-400 font-mono">
-            Distributed Satellite Health Monitoring & Fault Recovery System
+            Satellite Fleet Operations
           </p>
         </div>
       </div>
@@ -41,13 +41,13 @@ export default function Header({ systemHealth, wsConnected }) {
       <div className="flex items-center space-x-6 text-xs font-mono">
         <div className="flex items-center space-x-2 bg-slate-900/80 border border-slate-800 px-3 py-1.5 rounded-lg">
           <Activity className="w-4 h-4 text-cyan-400" />
-          <span className="text-slate-400">Nodes:</span>
-          <span className="font-bold text-slate-200">{healthySats} / {totalSats} Active</span>
+          <span className="text-slate-400">Satellites:</span>
+          <span className="font-bold text-slate-200">{healthySats ?? '—'} / {totalSats ?? '—'} Active</span>
         </div>
 
         <div className="flex items-center space-x-2 bg-slate-900/80 border border-slate-800 px-3 py-1.5 rounded-lg">
           <Radio className={`w-4 h-4 ${wsConnected ? 'text-emerald-400 animate-pulse' : 'text-amber-400'}`} />
-          <span className="text-slate-400">WebSocket Stream:</span>
+          <span className="text-slate-400">Live event stream:</span>
           <span className={`font-bold ${wsConnected ? 'text-emerald-400' : 'text-amber-400'}`}>
             {wsConnected ? 'CONNECTED' : 'CONNECTING...'}
           </span>
@@ -55,8 +55,8 @@ export default function Header({ systemHealth, wsConnected }) {
 
         <div className="flex items-center space-x-2 bg-slate-900/80 border border-slate-800 px-3 py-1.5 rounded-lg">
           <ShieldCheck className="w-4 h-4 text-cyan-400" />
-          <span className="text-slate-400">Current Leader:</span>
-          <span className="font-bold text-cyan-300 font-orbitron">{systemHealth?.current_leader || 'SAT-05'}</span>
+          <span className="text-slate-400">Coordinator:</span>
+          <span className="font-bold text-cyan-300 font-orbitron">{systemHealth?.current_leader || 'Unassigned'}</span>
         </div>
 
         <div className="flex items-center space-x-2 bg-slate-900/80 border border-slate-800 px-3 py-1.5 rounded-lg">
@@ -67,7 +67,7 @@ export default function Header({ systemHealth, wsConnected }) {
           )}
           <span className="text-slate-400">System:</span>
           <span className={`font-bold ${isHealthy ? 'text-emerald-400' : 'text-amber-400'}`}>
-            {systemHealth?.status || 'HEALTHY'}
+            {systemHealth?.status || 'UNKNOWN'}
           </span>
         </div>
 

@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: backend
-        image: orbital-mission-backend:latest
+        image: orbital-mission-backend:v1.0.1
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8000
@@ -26,13 +26,13 @@ spec:
             name: mission-control-config
         readinessProbe:
           httpGet:
-            path: /health
+            path: /api/health
             port: 8000
           initialDelaySeconds: 5
           periodSeconds: 10
         livenessProbe:
           httpGet:
-            path: /health
+            path: /api/health
             port: 8000
           initialDelaySeconds: 10
           periodSeconds: 15

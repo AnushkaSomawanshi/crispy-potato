@@ -12,3 +12,4 @@ frontend/dist/
 satellite_system.db
 *.log
 docker_startup.log
+storage_artifacts/

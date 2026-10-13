@@ -87,6 +87,42 @@ export default function MissionOverview({ satellites = [], observatoryStats = {}
       <div className="orbit-pro-clock"><Clock3 size={14} /><span>{nowUtc}</span></div>
     </header>
 
+    {/* Flagship Research USP Banner */}
+    <div className="p-4 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border border-cyan-500/40 rounded-xl flex items-center justify-between gap-4 shadow-lg shadow-cyan-950/20">
+      <div className="flex items-center gap-3">
+        <div className="p-2.5 bg-cyan-500/20 border border-cyan-500/40 rounded-xl text-cyan-400">
+          <Zap className="w-5 h-5" />
+        </div>
+        <div>
+          <div className="text-[11px] font-orbitron uppercase tracking-wider text-cyan-400 font-bold flex items-center gap-2">
+            Flagship Research USP &middot; Mission Continuity Demonstration
+          </div>
+          <div className="text-sm font-bold text-slate-100 mt-0.5">
+            Ground Blackout Mode &middot; Causality Lens &middot; Algorithm Arena
+          </div>
+          <div className="text-xs text-slate-400 mt-0.5">
+            Simulate complete loss of ground control. Satellites sustain autonomous Ring elections, circular telemetry buffering, and causal reconciliation.
+          </div>
+        </div>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        <NavLink
+          to="/blackout"
+          className="px-3.5 py-2 bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white rounded-lg text-xs font-bold font-orbitron transition flex items-center gap-1.5 shadow-md shadow-rose-950/30"
+        >
+          <span>Launch Blackout</span>
+          <ChevronRight size={14} />
+        </NavLink>
+        <NavLink
+          to="/sync-lab"
+          className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 rounded-lg text-xs font-bold font-orbitron transition flex items-center gap-1.5"
+        >
+          <span>Sync Lab</span>
+          <ChevronRight size={14} />
+        </NavLink>
+      </div>
+    </div>
+
     <section className="orbit-pro-metrics-grid" aria-label="Fleet summary">
       <MetricCard icon={Satellite} label="Registered satellites" value={fleet.length ? String(fleet.length).padStart(2, '0') : '—'} detail={fleet.length ? `${healthy} reporting healthy / online` : 'Waiting for node registration'} tone="cyan" />
       <MetricCard icon={Activity} label="Fleet availability" value={fleet.length ? `${Math.round((healthy / fleet.length) * 100)}%` : '—'} detail={fleet.length ? `${warnings} warning · ${critical} critical/offline` : 'No fleet state available'} tone={critical ? 'red' : 'green'} />

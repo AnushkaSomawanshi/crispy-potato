@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: satellite-rabbitmq
+  namespace: orbital-mission
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: satellite-rabbitmq
+  template:
+    metadata:
+      labels:
+        app: satellite-rabbitmq
+    spec:
+      containers:
+      - name: rabbitmq
+        image: rabbitmq:3-management-alpine
+        ports:
+        - containerPort: 5672
+          name: amqp
+        - containerPort: 15672
+          name: management
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: satellite-rabbitmq
+  namespace: orbital-mission
+spec:
+  ports:
+  - port: 5672
+    name: amqp
+    targetPort: 5672
+  - port: 15672
+    name: management
+    targetPort: 15672
+  selector:
+    app: satellite-rabbitmq

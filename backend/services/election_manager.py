@@ -171,6 +171,10 @@ class ElectionManager:
             await asyncio.sleep(0.01)
             return res
 
+    async def run_ring_election(self, initiator_id: str = "SAT-01") -> Dict[str, Any]:
+        return await self.execute_ring_election(initiator_id=initiator_id)
+
+
     def run_ring_election_sync(self, initiator_id: str = "SAT-01") -> Dict[str, Any]:
         """
         Synchronous election entry point for callers in synchronous contexts.
@@ -178,4 +182,178 @@ class ElectionManager:
         """
         return self._compute_election_round(initiator_id=initiator_id)
 
+    def _compute_bully_election(self, initiator_id: str = "SAT-01") -> Dict[str, Any]:
+        """
+        Garcia-Molina Bully Election Algorithm:
+        1. Initiator P sends ELECTION to all nodes with higher ID (P_j > P).
+        2. If no higher node responds (or all higher nodes offline), P declares itself leader and broadcasts COORDINATOR.
+        3. If a higher node is active, it responds with ANSWER / OK and takes over the election.
+        4. The highest-ID active node bullies all others and sends COORDINATOR to all lower active nodes.
+        Theoretical message complexity: Best case O(N), Worst case O(N^2).
+        """
+        start_time = time.time()
+        event_id = f"EVT-BULLY-{int(start_time * 1000)}"
+
+        if initiator_id not in ALL_RING_NODES:
+            initiator_id = "SAT-01"
+
+        logger.info(f"[BULLY ELECTION] Initiated by {initiator_id}")
+        clk = global_clock_manager.record_node_event(initiator_id, "BULLY_ELECTION_INITIATED")
+
+        eligible_nodes = [n for n in ALL_RING_NODES if self.is_node_eligible(n)]
+        failed_nodes = [n for n in ALL_RING_NODES if n not in eligible_nodes]
+        
+        messages_exchanged = 0
+        bully_trace = []
+        step = 1
+
+        # Phase 1: Initiator sends ELECTION to higher nodes
+        higher_nodes = [n for n in ALL_RING_NODES if n > initiator_id]
+        answers_received = []
+
+        for higher in higher_nodes:
+            messages_exchanged += 1
+            if higher in eligible_nodes:
+                messages_exchanged += 1 # ANSWER response
+                answers_received.append(higher)
+                bully_trace.append({
+                    "step": step,
+                    "phase": "ELECTION_PROBE",
+                    "from_node": initiator_id,
+                    "to_node": higher,
+                    "message_type": "ELECTION",
+                    "response": "ANSWER_OK",
+                    "status": "TAKEOVER_BY_HIGHER",
+                    "timestamp": round(time.time(), 3)
+                })
+            else:
+                bully_trace.append({
+                    "step": step,
+                    "phase": "ELECTION_PROBE",
+                    "from_node": initiator_id,
+                    "to_node": higher,
+                    "message_type": "ELECTION",
+                    "response": "TIMEOUT_NO_RESPONSE",
+                    "status": "NODE_OFFLINE",
+                    "timestamp": round(time.time(), 3)
+                })
+            step += 1
+
+        # Phase 2: Successor higher nodes continue probe until highest active node found
+        if answers_received:
+            # Active nodes take over, cascading higher
+            for node in sorted(answers_received):
+                peers_above = [n for n in ALL_RING_NODES if n > node]
+                for higher_above in peers_above:
+                    messages_exchanged += 1
+                    is_active = higher_above in eligible_nodes
+                    if is_active:
+                        messages_exchanged += 1
+                    bully_trace.append({
+                        "step": step,
+                        "phase": "ELECTION_CASCADE",
+                        "from_node": node,
+                        "to_node": higher_above,
+                        "message_type": "ELECTION",
+                        "response": "ANSWER_OK" if is_active else "TIMEOUT",
+                        "status": "CASCADE_ACTIVE",
+                        "timestamp": round(time.time(), 3)
+                    })
+                    step += 1
+
+        # The winner is the highest eligible node
+        winner_leader = max(eligible_nodes) if eligible_nodes else None
+
+        # Phase 3: COORDINATOR announcement to all eligible nodes
+        if winner_leader:
+            for node in eligible_nodes:
+                if node != winner_leader:
+                    messages_exchanged += 1
+                    bully_trace.append({
+                        "step": step,
+                        "phase": "COORDINATOR_ANNOUNCE",
+                        "from_node": winner_leader,
+                        "to_node": node,
+                        "message_type": "COORDINATOR",
+                        "new_leader": winner_leader,
+                        "status": "LEADER_CONFIRMED",
+                        "timestamp": round(time.time(), 3)
+                    })
+                    step += 1
+
+        duration_ms = round((time.time() - start_time) * 1000, 2)
+
+        return {
+            "event_id": event_id,
+            "status": "SUCCESS" if winner_leader else "NO_ELIGIBLE_LEADER",
+            "protocol": "Garcia-Molina Bully Election",
+            "initiator": initiator_id,
+            "new_leader": winner_leader,
+            "participating_nodes": eligible_nodes,
+            "failed_nodes": failed_nodes,
+            "messages_exchanged": messages_exchanged,
+            "election_trace": bully_trace,
+            "latency_ms": duration_ms,
+            "theoretical_complexity": "O(N^2) messages worst-case, O(N) best-case",
+            "lamport_timestamp": clk["lamport_timestamp"],
+            "timestamp": time.time()
+        }
+
+    async def run_bully_election(self, initiator_id: str = "SAT-01") -> Dict[str, Any]:
+        async with self._election_lock:
+            res = self._compute_bully_election(initiator_id=initiator_id)
+            if res.get("new_leader"):
+                self.current_leader = res["new_leader"]
+                self.current_term += 1
+            await asyncio.sleep(0.01)
+            return res
+
+    def run_bully_election_sync(self, initiator_id: str = "SAT-01") -> Dict[str, Any]:
+        res = self._compute_bully_election(initiator_id=initiator_id)
+        if res.get("new_leader"):
+            self.current_leader = res["new_leader"]
+            self.current_term += 1
+        return res
+
+    async def compare_election_algorithms(self, initiator_id: str = "SAT-01") -> Dict[str, Any]:
+        """
+        ALGORITHM ARENA: Side-by-side benchmark of Ring Election vs Bully Election
+        under identical network topology and node availability.
+        """
+        async with self._election_lock:
+            # Run Ring election
+            ring_res = self._compute_election_round(initiator_id=initiator_id)
+            # Run Bully election
+            bully_res = self._compute_bully_election(initiator_id=initiator_id)
+
+            return {
+                "initiator": initiator_id,
+                "node_count": len(ALL_RING_NODES),
+                "active_nodes": ring_res["participating_nodes"],
+                "failed_nodes": ring_res["bypassed_nodes"],
+                "ring_election": {
+                    "name": "Distributed Ring Election",
+                    "leader_elected": ring_res["new_leader"],
+                    "messages_exchanged": ring_res["messages_exchanged"],
+                    "latency_ms": ring_res["latency_ms"],
+                    "message_complexity": "2(N-1) messages linear ring",
+                    "trace_sample": ring_res["election_trace"][:6]
+                },
+                "bully_election": {
+                    "name": "Garcia-Molina Bully Election",
+                    "leader_elected": bully_res["new_leader"],
+                    "messages_exchanged": bully_res["messages_exchanged"],
+                    "latency_ms": bully_res["latency_ms"],
+                    "message_complexity": "O(N^2) quadratic higher-ID probes",
+                    "trace_sample": bully_res["election_trace"][:6]
+                },
+                "comparison_verdict": {
+                    "both_agreed_on_leader": ring_res["new_leader"] == bully_res["new_leader"],
+                    "message_ratio": round(bully_res["messages_exchanged"] / max(1, ring_res["messages_exchanged"]), 2),
+                    "ring_advantage": "Ring algorithm is message-efficient and deterministic over orbital ring topology",
+                    "bully_advantage": "Bully converges fast when highest node initiates, but produces bursty quadratic traffic"
+                }
+            }
+
 global_election_manager = ElectionManager()
+

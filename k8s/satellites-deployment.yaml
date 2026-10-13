@@ -16,10 +16,99 @@ spec:
       containers:
       - name: satellite-node
         image: orbital-satellite-node:latest
+        imagePullPolicy: IfNotPresent
+        command: ["python", "satellites/satellite_node.py"]
         args: ["--id", "SAT-01", "--grpc-port", "5001", "--p2p-port", "6001", "--registry", "http://mission-control-backend:8000"]
         ports:
         - containerPort: 5001
         - containerPort: 6001
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: satellite-02
+  namespace: orbital-mission
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: satellite-02
+  template:
+    metadata:
+      labels:
+        app: satellite-02
+    spec:
+      containers:
+      - name: satellite-node
+        image: orbital-satellite-node:latest
+        imagePullPolicy: IfNotPresent
+        command: ["python", "satellites/satellite_node.py"]
+        args: ["--id", "SAT-02", "--grpc-port", "5002", "--p2p-port", "6002", "--registry", "http://mission-control-backend:8000"]
+        ports:
+        - containerPort: 5002
+        - containerPort: 6002
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: satellite-03
+  namespace: orbital-mission
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: satellite-03
+  template:
+    metadata:
+      labels:
+        app: satellite-03
+    spec:
+      containers:
+      - name: satellite-node
+        image: orbital-satellite-node:latest
+        imagePullPolicy: IfNotPresent
+        command: ["python", "satellites/satellite_node.py"]
+        args: ["--id", "SAT-03", "--grpc-port", "5003", "--p2p-port", "6003", "--registry", "http://mission-control-backend:8000"]
+        ports:
+        - containerPort: 5003
+        - containerPort: 6003
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: satellite-04
+  namespace: orbital-mission
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: satellite-04
+  template:
+    metadata:
+      labels:
+        app: satellite-04
+    spec:
+      containers:
+      - name: satellite-node
+        image: orbital-satellite-node:latest
+        imagePullPolicy: IfNotPresent
+        command: ["python", "satellites/satellite_node.py"]
+        args: ["--id", "SAT-04", "--grpc-port", "5004", "--p2p-port", "6004", "--registry", "http://mission-control-backend:8000"]
+        ports:
+        - containerPort: 5004
+        - containerPort: 6004
         resources:
           requests:
             cpu: "100m"
@@ -43,6 +132,8 @@ spec:
       containers:
       - name: satellite-node
         image: orbital-satellite-node:latest
+        imagePullPolicy: IfNotPresent
+        command: ["python", "satellites/satellite_node.py"]
         args: ["--id", "SAT-05", "--grpc-port", "5005", "--p2p-port", "6005", "--registry", "http://mission-control-backend:8000"]
         ports:
         - containerPort: 5005

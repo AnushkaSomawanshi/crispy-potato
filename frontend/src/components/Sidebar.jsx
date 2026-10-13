@@ -11,10 +11,16 @@ import {
   Video,
   Terminal,
   Target,
+  Shield,
+  Clock,
+  Layers,
 } from 'lucide-react';
 
 const navItems = [
   { path: '/', name: 'Mission Overview', icon: LayoutDashboard },
+  { path: '/blackout', name: 'Ground Blackout (USP)', icon: Shield },
+  { path: '/sync-lab', name: 'Synchronization Lab', icon: Clock },
+  { path: '/paradigms-lab', name: 'Paradigms & Cloud', icon: Layers },
   { path: '/registry', name: 'Satellite Fleet', icon: Server },
   { path: '/topology', name: 'Fleet Topology', icon: Network },
   { path: '/telemetry', name: 'Live Telemetry', icon: Activity },

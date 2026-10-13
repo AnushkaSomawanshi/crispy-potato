@@ -148,6 +148,7 @@ class ClockSyncManager:
 
         return {
             "status": "SYNCHRONIZED",
+            "algorithm": "Christian's External Reference Algorithm",
             "reference_time": ref_time,
             "node_count": len(results),
             "avg_offset_ms": avg_offset,
@@ -156,6 +157,92 @@ class ClockSyncManager:
             "node_details": results,
             "timestamp": time.time()
         }
+
+    def run_berkeley_synchronization(self, coordinator_id: str = "SAT-04", outlier_threshold_ms: float = 600.0) -> Dict[str, Any]:
+        """
+        Berkeley Algorithm (Internal Distributed Clock Synchronization):
+        1. An elected coordinator polls all active nodes for their local physical times.
+        2. Coordinator estimates one-way transmission delays and samples each node's clock offset relative to itself.
+        3. Fault-tolerant averaging: Coordinator identifies and discards outliers exceeding outlier_threshold_ms.
+        4. Coordinator computes average cluster time offset.
+        5. Coordinator calculates adjustment proposals Delta_i = Avg_offset - Offset_i for every node.
+        6. Each node adjusts its clock offset by Delta_i.
+        7. Pre-sync vs Post-sync skew is measured to prove convergence.
+        """
+        if coordinator_id not in self.physical_clocks:
+            coordinator_id = "SAT-04"
+
+        coord_time = self.physical_clocks[coordinator_id].get_time()
+        samples = []
+
+        # 1 & 2: Sample all nodes relative to coordinator
+        for sat_id, pclock in self.physical_clocks.items():
+            rtt_ms = round(random.uniform(15.0, 40.0), 2)
+            estimated_one_way_ms = rtt_ms / 2.0
+            node_time = pclock.get_time() + (estimated_one_way_ms / 1000.0)
+            offset_relative_to_coord_ms = round((node_time - coord_time) * 1000.0, 3)
+            
+            samples.append({
+                "node_id": sat_id,
+                "sampled_time": node_time,
+                "rtt_ms": rtt_ms,
+                "offset_to_coord_ms": offset_relative_to_coord_ms,
+                "pre_sync_offset_ms": pclock.offset_ms
+            })
+
+        pre_offsets = [s["offset_to_coord_ms"] for s in samples]
+        pre_skew_ms = round(max(pre_offsets) - min(pre_offsets), 3)
+
+        # 3: Outlier filtering
+        median_offset = sorted(pre_offsets)[len(pre_offsets) // 2]
+        valid_samples = [
+            s for s in samples if abs(s["offset_to_coord_ms"] - median_offset) <= outlier_threshold_ms
+        ]
+        outliers = [s["node_id"] for s in samples if s not in valid_samples]
+
+        # 4: Average offset calculation
+        valid_offsets = [s["offset_to_coord_ms"] for s in valid_samples]
+        avg_cluster_offset_ms = round(sum(valid_offsets) / len(valid_offsets), 3) if valid_offsets else 0.0
+
+        # 5 & 6: Compute correction proposals and apply adjustment
+        proposals = []
+        for s in samples:
+            sat_id = s["node_id"]
+            if sat_id in outliers:
+                adj_ms = 0.0
+                status = "REJECTED_OUTLIER"
+            else:
+                # Delta_i = Avg_offset - Offset_i
+                adj_ms = round(avg_cluster_offset_ms - s["offset_to_coord_ms"], 3)
+                # Apply correction proposal
+                self.physical_clocks[sat_id].offset_ms += adj_ms
+                status = "ADJUSTED"
+
+            proposals.append({
+                "node_id": sat_id,
+                "sampled_offset_ms": s["offset_to_coord_ms"],
+                "correction_proposal_ms": adj_ms,
+                "post_sync_offset_ms": round(self.physical_clocks[sat_id].offset_ms, 3),
+                "status": status
+            })
+
+        # 7: Measure post-sync residual skew
+        post_times = [self.physical_clocks[s].get_time() for s in ALL_SATELLITE_IDS if s not in outliers]
+        post_skew_ms = round((max(post_times) - min(post_times)) * 1000.0, 3) if len(post_times) > 1 else 0.0
+
+        return {
+            "algorithm": "Berkeley Distributed Clock Synchronization",
+            "coordinator_id": coordinator_id,
+            "status": "CONVERGED",
+            "pre_sync_skew_ms": pre_skew_ms,
+            "post_sync_residual_skew_ms": post_skew_ms,
+            "skew_reduction_pct": round(max(0.0, (1.0 - (post_skew_ms / max(1.0, pre_skew_ms))) * 100.0), 1),
+            "cluster_average_offset_ms": avg_cluster_offset_ms,
+            "outlier_nodes_filtered": outliers,
+            "correction_proposals": proposals,
+            "timestamp": time.time()
+        }
+
 
     def record_node_event(self, node_id: str, event_type: str) -> Dict[str, Any]:
         if node_id not in self.lamport_clocks:

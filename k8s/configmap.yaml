@@ -9,8 +9,7 @@ metadata:
   name: mission-control-config
   namespace: orbital-mission
 data:
-  DATABASE_URL: "sqlite:////app/satellite_system.db"
-  RABBITMQ_HOST: "satellite-rabbitmq"
-  RABBITMQ_PORT: "5672"
+  DATABASE_URL: "postgresql+asyncpg://orbital_admin:orbital_secret@satellite-postgres:5432/orbital_mission_db"
+  RABBITMQ_URL: "amqp://guest:guest@satellite-rabbitmq:5672/"
   REGISTRY_URL: "http://mission-control-backend:8000"
   LOG_LEVEL: "INFO"

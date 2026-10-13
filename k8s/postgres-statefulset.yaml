@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: satellite-postgres
+  namespace: orbital-mission
+spec:
+  serviceName: "satellite-postgres"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: satellite-postgres
+  template:
+    metadata:
+      labels:
+        app: satellite-postgres
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:15-alpine
+        ports:
+        - containerPort: 5432
+          name: postgres
+        env:
+        - name: POSTGRES_USER
+          value: "orbital_admin"
+        - name: POSTGRES_PASSWORD
+          value: "orbital_secret"
+        - name: POSTGRES_DB
+          value: "orbital_mission_db"
+        volumeMounts:
+        - name: postgres-storage
+          mountPath: /var/lib/postgresql/data
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+  volumeClaimTemplates:
+  - metadata:
+      name: postgres-storage
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 2Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: satellite-postgres
+  namespace: orbital-mission
+spec:
+  ports:
+  - port: 5432
+    targetPort: 5432
+  selector:
+    app: satellite-postgres

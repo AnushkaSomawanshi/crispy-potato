@@ -29,16 +29,17 @@ class ServerlessEventProcessor:
 
         output_summary = f"Processed {function_name} event for payload origin: {event_payload.get('origin', 'SYSTEM')}"
 
-        # Store report artifact asynchronously
-        global_distributed_storage.store_artifact(
-            category="serverless_reports",
-            artifact_id=execution_id,
-            data={
+        # Store report artifact asynchronously into Replicated DFS
+        global_distributed_storage.store_file(
+            file_id=execution_id,
+            filename=f"{execution_id}.json",
+            content_str=json.dumps({
                 "function_name": function_name,
                 "event_payload": event_payload,
                 "summary": output_summary,
                 "executed_at": start_t
-            }
+            }, indent=2),
+            category="serverless_reports"
         )
 
         res = {

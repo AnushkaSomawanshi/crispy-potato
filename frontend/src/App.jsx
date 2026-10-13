@@ -28,6 +28,10 @@ import FailureIntelligencePage from './pages/FailureIntelligencePage';
 import ExperimentLabPage from './pages/ExperimentLabPage';
 import PartitionReconciliationPage from './pages/PartitionReconciliationPage';
 
+import GroundBlackoutPage from './pages/GroundBlackoutPage';
+import SynchronizationLabPage from './pages/SynchronizationLabPage';
+import ParadigmsLabPage from './pages/ParadigmsLabPage';
+
 
 export default function App() {
   const [satellites, setSatellites] = useState([]);
@@ -149,6 +153,9 @@ export default function App() {
           <main className="flex-1 min-w-0 p-4 overflow-y-auto">
             <Routes>
               <Route path="/" element={<MissionOverview satellites={satellites} observatoryStats={observatoryStats} wsConnected={wsConnected} onSelectSatellite={setSelectedSatForModal} onSelectCorrelationId={setActiveCorrelationId} />} />
+              <Route path="/blackout" element={<GroundBlackoutPage />} />
+              <Route path="/sync-lab" element={<SynchronizationLabPage />} />
+              <Route path="/paradigms-lab" element={<ParadigmsLabPage />} />
               <Route path="/tasks" element={<MissionTasksPage />} />
               <Route path="/clocks" element={<ClockSyncPage />} />
               <Route path="/ring-election" element={<RingElectionPage />} />

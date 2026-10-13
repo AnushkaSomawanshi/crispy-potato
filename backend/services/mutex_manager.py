@@ -120,4 +120,172 @@ class RicartAgrawalaMutex:
             }
         return {"status": "NOT_HELD", "resource_id": resource_id, "requester_id": requester_id}
 
+class CentralizedCoordinatorMutex:
+    """
+    Centralized Mutual Exclusion Algorithm:
+    - 1 coordinator processes all lock requests.
+    - Message sequence: REQUEST -> GRANT -> RELEASE (3 messages per critical section entry).
+    - Queueing: FIFO queue maintained at the coordinator when resource is locked.
+    - Trade-off: Minimal message overhead (3 messages), but coordinator represents single point of failure.
+    """
+    def __init__(self):
+        self.active_locks: Dict[str, Dict[str, Any]] = {}
+        self.wait_queues: Dict[str, List[str]] = {}
+        self.history: List[Dict[str, Any]] = []
+
+    def get_coordinator_id(self) -> str:
+        return global_registry.current_leader or "SAT-04"
+
+    async def request_resource(self, requester_id: str, resource_id: str) -> Dict[str, Any]:
+        start_time = time.time()
+        coordinator_id = self.get_coordinator_id()
+        event_id = f"EVT-CENTRAL-MUTEX-{int(start_time * 1000)}"
+
+        clk = global_clock_manager.record_node_event(requester_id, f"CENTRAL_MUTEX_REQ_{resource_id}")
+        t_i = clk["lamport_timestamp"]
+
+        messages_exchanged = 1  # 1. REQUEST to coordinator
+        message_trace = [
+            {
+                "step": 1,
+                "from_node": requester_id,
+                "to_node": coordinator_id,
+                "type": "REQUEST",
+                "resource_id": resource_id,
+                "lamport_timestamp": t_i,
+                "status": "DELIVERED"
+            }
+        ]
+
+        existing_lock = self.active_locks.get(resource_id)
+        if not existing_lock or existing_lock["holder"] == requester_id:
+            # Granted immediately
+            messages_exchanged += 1  # 2. GRANT from coordinator
+            self.active_locks[resource_id] = {
+                "resource_id": resource_id,
+                "holder": requester_id,
+                "coordinator": coordinator_id,
+                "acquired_at": time.time(),
+                "lamport_timestamp": t_i
+            }
+            message_trace.append({
+                "step": 2,
+                "from_node": coordinator_id,
+                "to_node": requester_id,
+                "type": "GRANT",
+                "resource_id": resource_id,
+                "status": "LOCK_ACQUIRED"
+            })
+            status = "CRITICAL_SECTION_ENTERED"
+        else:
+            # Queued at coordinator
+            if resource_id not in self.wait_queues:
+                self.wait_queues[resource_id] = []
+            self.wait_queues[resource_id].append(requester_id)
+            message_trace.append({
+                "step": 2,
+                "from_node": coordinator_id,
+                "to_node": requester_id,
+                "type": "QUEUE_WAIT",
+                "resource_id": resource_id,
+                "reason": f"Resource held by {existing_lock['holder']}",
+                "queue_position": len(self.wait_queues[resource_id])
+            })
+            status = "QUEUED_AT_COORDINATOR"
+
+        duration_ms = round((time.time() - start_time) * 1000, 2)
+        res = {
+            "event_id": event_id,
+            "algorithm": "Centralized Coordinator Mutual Exclusion",
+            "coordinator_id": coordinator_id,
+            "requester_id": requester_id,
+            "resource_id": resource_id,
+            "status": status,
+            "messages_exchanged": messages_exchanged,
+            "message_trace": message_trace,
+            "latency_ms": duration_ms,
+            "lamport_timestamp": t_i,
+            "timestamp": time.time()
+        }
+        self.history.append(res)
+        return res
+
+    def release_resource(self, requester_id: str, resource_id: str) -> Dict[str, Any]:
+        existing = self.active_locks.get(resource_id)
+        coordinator_id = self.get_coordinator_id()
+        if existing and existing["holder"] == requester_id:
+            del self.active_locks[resource_id]
+            next_holder = None
+            if self.wait_queues.get(resource_id):
+                next_holder = self.wait_queues[resource_id].pop(0)
+                self.active_locks[resource_id] = {
+                    "resource_id": resource_id,
+                    "holder": next_holder,
+                    "coordinator": coordinator_id,
+                    "acquired_at": time.time(),
+                    "lamport_timestamp": global_clock_manager.lamport_clocks[next_holder].value if next_holder in global_clock_manager.lamport_clocks else 1
+                }
+            return {
+                "status": "RELEASED",
+                "resource_id": resource_id,
+                "previous_holder": requester_id,
+                "coordinator_id": coordinator_id,
+                "next_holder_granted": next_holder,
+                "messages_exchanged": 2 if next_holder else 1, # RELEASE + optional GRANT
+                "timestamp": time.time()
+            }
+        return {"status": "NOT_HELD", "resource_id": resource_id, "requester_id": requester_id}
+
 global_mutex_engine = RicartAgrawalaMutex()
+global_centralized_mutex = CentralizedCoordinatorMutex()
+
+async def compare_mutex_algorithms(requester_id: str = "SAT-01", resource_id: str = "ORBITAL_DOWNLINK_TRANSMITTER") -> Dict[str, Any]:
+    """
+    ALGORITHM ARENA: Side-by-side benchmark of Centralized vs Ricart-Agrawala Mutex.
+    """
+    active_peers = [n for n in ALL_NODES if n != requester_id and (reg := global_registry.lookup(n)) and reg.status not in ["OFFLINE", "DISCONNECTED", "FAILED"]]
+    n_nodes = len(active_peers) + 1
+
+    # Ricart-Agrawala dry simulation/execution
+    ricart_res = await global_mutex_engine.request_resource(requester_id, f"SIM_{resource_id}")
+    ricart_msgs = len(ricart_res.get("message_trace", [])) or (2 * (n_nodes - 1))
+    
+    # Centralized dry simulation/execution
+    central_res = await global_centralized_mutex.request_resource(requester_id, f"SIM_{resource_id}")
+    central_msgs = central_res.get("messages_exchanged", 2)
+
+    # Cleanup temporary locks
+    global_mutex_engine.release_resource(requester_id, f"SIM_{resource_id}")
+    global_centralized_mutex.release_resource(requester_id, f"SIM_{resource_id}")
+
+    return {
+        "requester_id": requester_id,
+        "resource_id": resource_id,
+        "cluster_nodes_count": n_nodes,
+        "active_peers": active_peers,
+        "ricart_agrawala": {
+            "name": "Ricart-Agrawala Distributed Mutex",
+            "messages_exchanged": ricart_msgs,
+            "theoretical_messages": f"2(N - 1) = {2 * (n_nodes - 1)} messages",
+            "latency_ms": ricart_res.get("latency_ms", 15.0),
+            "state": ricart_res.get("status"),
+            "single_point_of_failure": False,
+            "trace_sample": ricart_res.get("message_trace", [])[:4]
+        },
+        "centralized": {
+            "name": "Centralized Coordinator Mutex",
+            "coordinator_id": global_registry.current_leader or "SAT-04",
+            "messages_exchanged": central_msgs + 1,  # include RELEASE
+            "theoretical_messages": "3 messages total (REQUEST, GRANT, RELEASE)",
+            "latency_ms": central_res.get("latency_ms", 5.0),
+            "state": central_res.get("status"),
+            "single_point_of_failure": True,
+            "trace_sample": central_res.get("message_trace", [])[:3]
+        },
+        "arena_verdict": {
+            "message_overhead_reduction": f"{round((1 - (3 / max(3, 2 * (n_nodes - 1)))) * 100, 1)}% fewer messages in Centralized",
+            "ricart_resilience_advantage": "Ricart-Agrawala has no single point of failure; relies only on peer Lamport timestamps",
+            "centralized_tradeoff": "Centralized is 3x faster and lower bandwidth, but crashes if coordinator fails"
+        }
+    }
+

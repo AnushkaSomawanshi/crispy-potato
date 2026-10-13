@@ -35,6 +35,14 @@ fault_simulator = FaultSimulator(global_registry)
 from backend.services.event_manager import generate_correlation_id, create_event
 from backend.services.election_manager import global_election_manager
 from backend.services.reallocation_engine import global_reallocation_engine
+from backend.services.ground_blackout import global_blackout_manager
+from backend.services.causality_lens import global_causality_lens
+from backend.services.mutex_manager import global_centralized_mutex, compare_mutex_algorithms
+from backend.services.distributed_clocks import global_clock_manager
+from backend.services.distributed_storage import global_distributed_storage
+from backend.services.serverless_processor import global_serverless_processor
+from backend.services.hadoop_analytics import global_hadoop_analytics
+from backend.services.k8s_service import global_k8s_service
 
 _failover_lock = asyncio.Lock()
 
@@ -286,6 +294,22 @@ async def receive_heartbeat(req: HeartbeatRequest):
     else:
         logger.info(f"[HEARTBEAT] Mission Control ← {req.satellite_id} | status=RECEIVED | health={score}% | battery={req.battery}% | temp={req.temperature}°C")
 
+    # When Ground Blackout mode is active, buffer telemetry into local ring buffer
+    if global_blackout_manager.is_blackout_active():
+        global_blackout_manager.buffer_telemetry(
+            req.satellite_id,
+            {
+                "battery": req.battery,
+                "temperature": req.temperature,
+                "cpu_usage": req.cpu_usage,
+                "memory_usage": req.memory_usage,
+                "signal_strength": req.signal_strength,
+                "health_score": score,
+                "status": status,
+                "timestamp": time.time()
+            }
+        )
+
     # Broadcast telemetry update over WebSocket
     await websocket_manager.broadcast({
         "event_type": "TELEMETRY_UPDATED",
@@ -300,6 +324,7 @@ async def receive_heartbeat(req: HeartbeatRequest):
             "status": status,
             "timestamp": time.time()
         },
+        "is_blackout": global_blackout_manager.is_blackout_active(),
         "timestamp": time.time()
     })
     
@@ -960,7 +985,149 @@ async def system_health():
         "timestamp": time.time()
     }
 
+# ------------------- GROUND BLACKOUT MODE APIs (FLAGSHIP USP) -------------------
+
+@app.post("/api/blackout/start")
+async def start_ground_blackout(req: dict = None):
+    reason = (req or {}).get("reason", "Simulated ground link blackout / loss of signal")
+    res = await global_blackout_manager.start_blackout(reason=reason)
+    await websocket_manager.broadcast({
+        "event_type": "GROUND_BLACKOUT_STARTED",
+        "data": res,
+        "timestamp": time.time()
+    })
+    return res
+
+@app.post("/api/blackout/simulate-coordinator-failure")
+async def blackout_coordinator_failure():
+    res = await global_blackout_manager.simulate_coordinator_failure()
+    await websocket_manager.broadcast({
+        "event_type": "BLACKOUT_COORDINATOR_FAILOVER",
+        "data": res,
+        "timestamp": time.time()
+    })
+    return res
+
+@app.post("/api/blackout/reconnect")
+async def reconnect_ground_blackout():
+    res = await global_blackout_manager.reconnect_ground()
+    await websocket_manager.broadcast({
+        "event_type": "GROUND_BLACKOUT_RECONNECTED",
+        "evidence": res,
+        "timestamp": time.time()
+    })
+    return res
+
+@app.get("/api/blackout/status")
+async def get_blackout_status():
+    return global_blackout_manager.get_status()
+
+@app.get("/api/blackout/evidence")
+async def get_blackout_evidence():
+    evidence = global_blackout_manager.get_evidence()
+    if not evidence:
+        return {"status": "NO_EVIDENCE_YET", "message": "Run Ground Blackout and Reconnect to generate evidence."}
+    return evidence
+
+# ------------------- CAUSALITY LENS APIs (USP #2 - CHAPTER 3) -------------------
+
+@app.get("/api/causality/events")
+async def get_causality_events():
+    return {"events": global_causality_lens.list_events(), "count": len(global_causality_lens.list_events())}
+
+@app.post("/api/causality/compare")
+async def compare_causality_events(req: dict):
+    event_a = req.get("event_id_a")
+    event_b = req.get("event_id_b")
+    if not event_a or not event_b:
+        raise HTTPException(status_code=400, detail="event_id_a and event_id_b are required")
+    res = global_causality_lens.compare_events(event_a, event_b)
+    if "error" in res:
+        raise HTTPException(status_code=404, detail=res["error"])
+    return res
+
+@app.post("/api/causality/record")
+async def record_causality_event(req: dict):
+    node_id = req.get("node_id", "SAT-01")
+    event_type = req.get("event_type", "GENERIC_EVENT")
+    description = req.get("description", "User-injected causal event")
+    res = global_causality_lens.record_event(node_id, event_type, description)
+    return res
+
+# ------------------- ALGORITHM ARENA APIs (USP #3 - CHAPTER 3) -------------------
+
+@app.post("/api/arena/election/compare")
+async def compare_election_algorithms(req: dict = None):
+    initiator = (req or {}).get("initiator_id", "SAT-01")
+    return await global_election_manager.compare_election_algorithms(initiator_id=initiator)
+
+@app.post("/api/arena/mutex/compare")
+async def compare_mutex_algorithms_api(req: dict = None):
+    requester = (req or {}).get("requester_id", "SAT-01")
+    resource = (req or {}).get("resource_id", "ORBITAL_DOWNLINK_TRANSMITTER")
+    return await compare_mutex_algorithms(requester_id=requester, resource_id=resource)
+
+# ------------------- CLOCK LAB BERKELEY API (CHAPTER 3) -------------------
+
+@app.post("/api/clocks/berkeley")
+async def run_berkeley_clock_sync(req: dict = None):
+    coordinator = (req or {}).get("coordinator_id", global_registry.current_leader or "SAT-04")
+    outlier_threshold = float((req or {}).get("outlier_threshold_ms", 600.0))
+    res = global_clock_manager.run_berkeley_synchronization(
+        coordinator_id=coordinator,
+        outlier_threshold_ms=outlier_threshold
+    )
+    await websocket_manager.broadcast({
+        "event_type": "BERKELEY_CLOCK_SYNC_COMPLETED",
+        "result": res,
+        "timestamp": time.time()
+    })
+    return res
+
+# ------------------- REPLICATED DISTRIBUTED FILE SYSTEM APIs (CHAPTER 4) -------------------
+
+@app.post("/api/dfs/upload")
+async def dfs_upload_file(req: dict):
+    file_id = req.get("file_id", f"FILE-{int(time.time()*1000)%100000}")
+    filename = req.get("filename", f"artifact_{file_id}.dat")
+    content = req.get("content", "Satellite orbital telemetry and spectrum analysis payload log.")
+    category = req.get("category", "MISSION_PAYLOAD")
+    return global_distributed_storage.store_file(file_id, filename, content, category=category)
+
+@app.get("/api/dfs/files")
+async def dfs_list_files():
+    return {"files": global_distributed_storage.list_files(), "status": global_distributed_storage.get_cluster_status()}
+
+@app.get("/api/dfs/files/{file_id}")
+async def dfs_get_file(file_id: str):
+    res = global_distributed_storage.retrieve_file(file_id)
+    if "error" in res:
+        raise HTTPException(status_code=404, detail=res["error"])
+    return res
+
+@app.post("/api/dfs/simulate-outage")
+async def dfs_simulate_outage(req: dict):
+    node_id = req.get("node_id", "SAT-02")
+    is_offline = bool(req.get("is_offline", True))
+    return global_distributed_storage.simulate_node_outage(node_id, is_offline)
+
+@app.get("/api/dfs/status")
+async def dfs_cluster_status():
+    return global_distributed_storage.get_cluster_status()
+
+# ------------------- KUBERNETES OBSERVATORY API (CHAPTER 4 & 5) -------------------
+
+@app.get("/api/k8s/observatory")
+async def get_k8s_observatory_status():
+    """
+    Returns deployment and orchestration status for Docker Desktop Kubernetes demonstration.
+    Queries actual cluster pods, deployments, and services in real-time.
+    """
+    return await global_k8s_service.get_cluster_observability()
+
+
 @app.websocket("/ws")
+
 async def websocket_endpoint(websocket: WebSocket):
     await websocket_manager.connect(websocket)
     try:

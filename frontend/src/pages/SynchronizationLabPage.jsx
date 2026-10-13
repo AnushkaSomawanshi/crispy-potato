@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import ClockSyncPage from './ClockSyncPage';
 import {
   Clock,
   Radio,
@@ -406,73 +407,8 @@ export default function SynchronizationLabPage() {
         </div>
       )}
 
-      {/* TAB 3: BERKELEY CLOCK SYNC */}
-      {activeTab === 'clocks' && (
-        <div className="space-y-6">
-          <div className="p-5 bg-slate-900 border border-slate-800 rounded-2xl space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-sm font-bold font-orbitron uppercase tracking-wider text-slate-100 flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-cyan-400" />
-                  Berkeley Algorithm: Distributed Clock Synchronization
-                </h2>
-                <p className="text-xs text-slate-400">
-                  Coordinator samples physical times, filters outliers, calculates fault-tolerant cluster average, and dispatches correction proposals.
-                </p>
-              </div>
-              <button
-                onClick={handleRunBerkeley}
-                disabled={clockLoading}
-                className="px-4 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-xl text-xs font-bold font-orbitron transition flex items-center gap-2"
-              >
-                <Play className="w-4 h-4" />
-                <span>Run Berkeley Sync Round</span>
-              </button>
-            </div>
-
-            {berkeleyResult && (
-              <div className="space-y-4 pt-2 animate-fade-in">
-                {/* Skew Reduction Banner */}
-                <div className="grid grid-cols-4 gap-3 text-xs">
-                  <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl">
-                    <div className="text-slate-400">Elected Coordinator</div>
-                    <div className="text-lg font-bold font-mono text-cyan-300 mt-1">{berkeleyResult.coordinator_id}</div>
-                  </div>
-                  <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl">
-                    <div className="text-slate-400">Pre-Sync Cluster Skew</div>
-                    <div className="text-lg font-bold font-mono text-rose-400 mt-1">{berkeleyResult.pre_sync_skew_ms}ms</div>
-                  </div>
-                  <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl">
-                    <div className="text-slate-400">Post-Sync Residual Skew</div>
-                    <div className="text-lg font-bold font-mono text-emerald-400 mt-1">{berkeleyResult.post_sync_residual_skew_ms}ms</div>
-                  </div>
-                  <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl">
-                    <div className="text-slate-400">Skew Reduction</div>
-                    <div className="text-lg font-bold font-mono text-cyan-400 mt-1">{berkeleyResult.skew_reduction_pct}%</div>
-                  </div>
-                </div>
-
-                {/* Proposals Table */}
-                <div className="bg-slate-950 border border-slate-800 rounded-xl p-3">
-                  <h3 className="text-xs font-bold font-orbitron text-slate-300 uppercase tracking-wider mb-2">
-                    Coordinator Adjustment Proposals & Delta Offsets
-                  </h3>
-                  <div className="divide-y divide-slate-800/80 text-xs font-mono">
-                    {berkeleyResult.correction_proposals.map((prop, idx) => (
-                      <div key={idx} className="py-2 flex items-center justify-between text-slate-300">
-                        <span className="font-bold text-cyan-300">{prop.node_id}</span>
-                        <span className="text-slate-400">Sampled Offset: {prop.sampled_offset_ms}ms</span>
-                        <span className="text-amber-400">Proposal &Delta;: {prop.correction_proposal_ms > 0 ? `+${prop.correction_proposal_ms}` : prop.correction_proposal_ms}ms</span>
-                        <span className="text-emerald-400">{prop.status}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      {/* TAB 3: PHYSICAL AND LOGICAL CLOCK LAB */}
+      {activeTab === 'clocks' && <ClockSyncPage />}
 
       {/* TAB 4: CHANDY-LAMPORT GLOBAL SNAPSHOTS */}
       {activeTab === 'snapshots' && (

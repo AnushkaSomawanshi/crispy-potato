@@ -11,11 +11,6 @@ import {
   Video,
   Terminal,
   Target,
-  Clock,
-  ShieldCheck,
-  Lock,
-  Camera,
-  Cpu
 } from 'lucide-react';
 
 const navItems = [

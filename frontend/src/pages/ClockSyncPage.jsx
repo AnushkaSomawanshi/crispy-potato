@@ -49,7 +49,7 @@ export default function ClockSyncPage() {
 
   return <div className="space-y-6 pb-12 text-slate-100">
     <header className="rounded-2xl border border-cyan-500/30 bg-gradient-to-r from-slate-950 to-slate-900 p-6">
-      <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-cyan-300"><Clock className="h-4 w-4" /> Chapter 3 · Synchronization</div>
+      <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-cyan-300"><Clock className="h-4 w-4" /> Clock Experiments</div>
       <h1 className="mt-2 text-2xl font-bold">Satellite Clock Lab</h1>
       <p className="mt-2 text-sm text-slate-400">Physical synchronization aligns simulated clock readings. Logical clocks order distributed events; they do not synchronize wall-clock time.</p>
       <div className="mt-4 flex flex-wrap gap-2">

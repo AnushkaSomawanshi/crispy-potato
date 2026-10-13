@@ -30,6 +30,7 @@ import PartitionReconciliationPage from './pages/PartitionReconciliationPage';
 
 import GroundBlackoutPage from './pages/GroundBlackoutPage';
 import SynchronizationLabPage from './pages/SynchronizationLabPage';
+import VectorClockLabPage from './pages/VectorClockLabPage';
 import ParadigmsLabPage from './pages/ParadigmsLabPage';
 
 
@@ -155,6 +156,7 @@ export default function App() {
               <Route path="/" element={<MissionOverview satellites={satellites} observatoryStats={observatoryStats} wsConnected={wsConnected} onSelectSatellite={setSelectedSatForModal} onSelectCorrelationId={setActiveCorrelationId} />} />
               <Route path="/blackout" element={<GroundBlackoutPage />} />
               <Route path="/sync-lab" element={<SynchronizationLabPage />} />
+              <Route path="/vector-clocks" element={<VectorClockLabPage />} />
               <Route path="/paradigms-lab" element={<ParadigmsLabPage />} />
               <Route path="/tasks" element={<MissionTasksPage />} />
               <Route path="/clocks" element={<ClockSyncPage />} />

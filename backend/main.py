@@ -40,6 +40,7 @@ from backend.services.causality_lens import global_causality_lens
 from backend.services.mutex_manager import global_centralized_mutex, compare_mutex_algorithms
 from backend.services.distributed_clocks import global_clock_manager
 from backend.services.clock_lab import run_physical_experiment, run_lamport_experiment
+from backend.services.vector_clock import run_vector_experiment, compare_vectors
 from backend.services.distributed_storage import global_distributed_storage
 from backend.services.serverless_processor import global_serverless_processor
 from backend.services.hadoop_analytics import global_hadoop_analytics
@@ -1144,6 +1145,23 @@ async def get_k8s_observatory_status():
     """
     return await global_k8s_service.get_cluster_observability()
 
+
+
+# ------------------- VECTOR CLOCK LAB API (CHAPTER 3) -------------------
+
+@app.post("/api/clocks/vector-experiment")
+async def vector_clock_experiment(req: dict):
+    try:
+        return run_vector_experiment(req.get("process_ids"), req.get("events"))
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+@app.post("/api/clocks/vector-compare")
+async def vector_clock_compare(req: dict):
+    try:
+        return compare_vectors(req.get("vector_a"), req.get("vector_b"))
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
 
 @app.websocket("/ws")
 

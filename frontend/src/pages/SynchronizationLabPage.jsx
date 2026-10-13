@@ -5,7 +5,6 @@ import {
   Radio,
   Swords,
   Camera,
-  Activity,
   Lock,
   ChevronRight,
   Play,
@@ -167,7 +166,7 @@ export default function SynchronizationLabPage() {
             Distributed Synchronization Lab
           </h1>
           <p className="text-xs text-slate-400 mt-1 max-w-2xl">
-            Live verifiable experimentation for physical clocks (Berkeley), scalar logical time (Lamport), vector clocks & concurrency detection (Causality Lens), snapshot consistency (Chandy-Lamport), leader elections (Algorithm Arena), and mutual exclusion arbitration.
+            Backend-backed clock experiments, vector-clock comparisons over a seeded example trace, election and mutual-exclusion comparisons, and snapshot requests. These are simulations, not a live satellite clock or network protocol.
           </p>
         </div>
       </div>
@@ -473,39 +472,7 @@ export default function SynchronizationLabPage() {
         </div>
       )}
 
-      {/* TAB 5: BEACON PROTOCOL MONITOR */}
-      {activeTab === 'beacons' && (
-        <div className="p-5 bg-slate-900 border border-slate-800 rounded-2xl space-y-4">
-          <h2 className="text-sm font-bold font-orbitron uppercase tracking-wider text-slate-100 flex items-center gap-2">
-            <Activity className="w-4 h-4 text-emerald-400" />
-            Beacon Protocol Failure Detection State Machine
-          </h2>
-          <p className="text-xs text-slate-400">
-            Explicit node failure detection lifecycle: HEALTHY &rarr; DEGRADED &rarr; SUSPECTED &rarr; FAILED &rarr; RECOVERING. Prevents spurious elections on transient latency.
-          </p>
-
-          <div className="grid grid-cols-5 gap-3 pt-2">
-            {['SAT-01', 'SAT-02', 'SAT-03', 'SAT-04', 'SAT-05'].map((sat) => (
-              <div key={sat} className="p-4 bg-slate-950 border border-slate-800 rounded-xl space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold font-orbitron text-xs text-slate-200">{sat}</span>
-                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                    HEALTHY
-                  </span>
-                </div>
-                <div className="text-[11px] text-slate-400 space-y-1 font-mono">
-                  <div>RTT: 18.2ms</div>
-                  <div>Loss: 0.0%</div>
-                  <div>Missed: 0</div>
-                  <div>Confidence: 1.00</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* TAB 6: RICART-AGRAWALA MUTEX */}
+      {/* RICART-AGRAWALA MUTEX */}
       {activeTab === 'mutex' && (
         <div className="p-5 bg-slate-900 border border-slate-800 rounded-2xl space-y-4">
           <div className="flex items-center justify-between">

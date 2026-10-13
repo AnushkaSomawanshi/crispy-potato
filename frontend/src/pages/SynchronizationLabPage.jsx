@@ -161,7 +161,7 @@ export default function SynchronizationLabPage() {
         <div>
           <div className="flex items-center gap-2 text-cyan-400 text-xs font-orbitron uppercase tracking-widest">
             <Clock className="w-4 h-4 animate-spin text-cyan-400" />
-            Chapter 3 &middot; Synchronization Unified Laboratory
+            Synchronization Experiments
           </div>
           <h1 className="text-2xl font-bold font-orbitron text-slate-100 mt-1">
             Distributed Synchronization Lab
@@ -175,8 +175,8 @@ export default function SynchronizationLabPage() {
       {/* Tab Navigation */}
       <div className="flex border-b border-slate-800 space-x-1 overflow-x-auto text-xs font-orbitron">
         {[
-          { id: 'causality', label: 'Causality Lens (USP #2)', icon: Radio },
-          { id: 'arena', label: 'Algorithm Arena (USP #3)', icon: Swords },
+          { id: 'causality', label: 'Vector Clocks & Causality', icon: Radio },
+          { id: 'arena', label: 'Election & Mutual Exclusion', icon: Swords },
           { id: 'clocks', label: 'Berkeley Clock Sync', icon: Clock },
           { id: 'snapshots', label: 'Global Snapshots', icon: Camera },
           { id: 'beacons', label: 'Beacon Protocol Monitor', icon: Activity },
@@ -201,7 +201,7 @@ export default function SynchronizationLabPage() {
         })}
       </div>
 
-      {/* TAB 1: CAUSALITY LENS (USP #2) */}
+      {/* TAB 1: VECTOR CLOCKS & CAUSALITY */}
       {activeTab === 'causality' && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -326,7 +326,7 @@ export default function SynchronizationLabPage() {
         </div>
       )}
 
-      {/* TAB 2: ALGORITHM ARENA (USP #3) */}
+      {/* TAB 2: ELECTION & MUTUAL EXCLUSION */}
       {activeTab === 'arena' && (
         <div className="space-y-6">
           <div className="p-5 bg-slate-900 border border-slate-800 rounded-2xl space-y-4">

@@ -39,6 +39,7 @@ from backend.services.ground_blackout import global_blackout_manager
 from backend.services.causality_lens import global_causality_lens
 from backend.services.mutex_manager import global_centralized_mutex, compare_mutex_algorithms
 from backend.services.distributed_clocks import global_clock_manager
+from backend.services.clock_lab import run_physical_experiment, run_lamport_experiment
 from backend.services.distributed_storage import global_distributed_storage
 from backend.services.serverless_processor import global_serverless_processor
 from backend.services.hadoop_analytics import global_hadoop_analytics
@@ -791,6 +792,24 @@ async def verify_signature_endpoint(req: dict):
 @app.post("/api/clocks/synchronize")
 async def synchronize_physical_clocks():
     return global_clock_manager.run_synchronization_round()
+
+@app.post("/api/clocks/physical-experiment")
+async def run_physical_clock_experiment(req: dict):
+    try:
+        return run_physical_experiment(
+            clocks=req.get("clocks", []),
+            algorithm=req.get("algorithm", "BERKELEY"),
+            coordinator_id=req.get("coordinator_id")
+        )
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+@app.post("/api/clocks/lamport-experiment")
+async def run_lamport_clock_experiment(req: dict):
+    try:
+        return run_lamport_experiment(events=req.get("events", []))
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
 
 @app.get("/api/clocks/status")
 async def get_clock_status():

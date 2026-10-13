@@ -14,12 +14,14 @@ import {
   Shield,
   Clock,
   Layers,
+  GitBranch,
 } from 'lucide-react';
 
 const navItems = [
   { path: '/', name: 'Mission Overview', icon: LayoutDashboard },
   { path: '/blackout', name: 'Ground Blackout (USP)', icon: Shield },
   { path: '/sync-lab', name: 'Synchronization Lab', icon: Clock },
+  { path: '/vector-clocks', name: 'Vector Clock Lab', icon: GitBranch },
   { path: '/paradigms-lab', name: 'Paradigms & Cloud', icon: Layers },
   { path: '/registry', name: 'Satellite Fleet', icon: Server },
   { path: '/topology', name: 'Fleet Topology', icon: Network },

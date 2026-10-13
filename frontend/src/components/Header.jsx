@@ -25,7 +25,7 @@ export default function Header({ systemHealth, wsConnected }) {
         <div>
           <div className="flex items-center space-x-2">
             <h1 className="text-lg font-bold text-slate-100 tracking-wider font-orbitron">
-              ORBITAL MISSION CONTROL
+              ORBITTRACK
             </h1>
             <span className="px-2 py-0.5 text-xs font-semibold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 rounded-md">
               LIVE OPERATIONS

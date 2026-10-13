@@ -48,7 +48,7 @@ def test_transitive_causality_is_preserved():
 
 
 def test_reverse_order_is_reported():
-    assert compare_vectors([0, 2], [1, 2])["relation"] == "B_HAPPENED_BEFORE_A"
+    assert compare_vectors([1, 2], [0, 2])["relation"] == "B_HAPPENED_BEFORE_A"
 
 
 def test_equal_vectors_are_not_claimed_to_be_strictly_ordered():
